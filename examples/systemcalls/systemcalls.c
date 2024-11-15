@@ -1,4 +1,10 @@
 #include "systemcalls.h"
+#include <stdlib.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -10,13 +16,9 @@
 bool do_system(const char *cmd)
 {
 
-/*
- * TODO  add your code here
- *  Call the system() function with the command set in the cmd
- *   and return a boolean true if the system() call completed with success
- *   or false() if it returned a failure
-*/
-
+    int ret = system(cmd);
+    if (ret != 0)
+        return false;
     return true;
 }
 
@@ -45,23 +47,26 @@ bool do_exec(int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
 
-/*
- * TODO:
- *   Execute a system command by calling fork, execv(),
- *   and wait instead of system (see LSP page 161).
- *   Use the command[0] as the full path to the command to execute
- *   (first argument to execv), and use the remaining arguments
- *   as second argument to the execv() command.
- *
-*/
+    int status;
+    pid_t pid;
 
-    va_end(args);
+    fflush(stdout);
+    pid = fork();
+    if (pid == -1)
+        return false;
+    else if (pid == 0) {
+	execv(command[0], command);
+	exit(-1);
+    }
 
-    return true;
+    if (waitpid(pid, &status, 0) == -1)
+	return false;
+    else if (WEXITSTATUS(status) == 0) {
+	va_end(args);
+        return true;
+    }
+    return false;
 }
 
 /**
@@ -80,20 +85,31 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
 
+    int status;
+    pid_t pid;
+    int fd = open("testfile.txt", O_WRONLY);
+    if (fd < 0)
+        return false;
 
-/*
- * TODO
- *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a refernce,
- *   redirect standard out to a file specified by outputfile.
- *   The rest of the behaviour is same as do_exec()
- *
-*/
+    fflush(stdout);
+    pid = fork();
+    if (pid == -1)
+        return false;
+    else if (pid == 0) {
+	if (dup2(fd, 1) < 0)
+	    return false;
+	close(fd);
+        execv(command[0], command);
+    	exit(-1);
+    }
 
-    va_end(args);
-
-    return true;
+    close(fd);
+    if (waitpid(pid, &status, 0) == -1)
+        return false;
+    else if (WEXITSTATUS(status) == 0) {
+        va_end(args);
+        return true;
+    }
+    return false;
 }
