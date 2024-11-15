@@ -12,6 +12,8 @@ BUSYBOX_VERSION=1_33_1
 FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
 CROSS_COMPILE=aarch64-none-linux-gnu-
+SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)
+echo "${SYSROOT}"
 
 if [ $# -lt 1 ]
 then
@@ -84,17 +86,17 @@ ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
-cp ~/cross-compilation/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib/
-cp ~/cross-compilation/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc/lib64/libc.so.6 ${OUTDIR}/rootfs/lib64/
-cp ~/cross-compilation/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc/lib64/libm.so.6 ${OUTDIR}/rootfs/lib64/
-cp ~/cross-compilation/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc/lib64/libresolv.so.2 ${OUTDIR}/rootfs/lib64/
+cp "${SYSROOT}/lib/ld-linux-aarch64.so.1" "${OUTDIR}/rootfs/lib/"
+cp "${SYSROOT}/lib64/libm.so.6" "${OUTDIR}/rootfs/lib64/"
+cp "${SYSROOT}/lib64/libresolv.so.2" "${OUTDIR}/rootfs/lib64/"
+cp "${SYSROOT}/lib64/libc.so.6" "${OUTDIR}/rootfs/lib64/"
 
 # TODO: Make device nodes
 sudo mknod -m 666 dev/null c 1 3
 sudo mknod -m 600 dev/console c 5 1
 
 # TODO: Clean and build the writer utility
-cd ~/assignment-1-patric-moreto/finder-app
+cd $FINDER_APP_DIR
 make clean
 make CROSS_COMPILE=${CROSS_COMPILE}
 cp writer ${OUTDIR}/rootfs/home/
