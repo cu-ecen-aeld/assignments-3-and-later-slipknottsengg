@@ -1,10 +1,10 @@
-#include "systemcalls.h"
-#include <stdlib.h>
-#include <sys/types.h>
-#include <unistd.h>
 #include <sys/wait.h>
-#include <sys/stat.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
 #include <fcntl.h>
+
+#include "systemcalls.h"
 
 /**
  * @param cmd the command to execute with system()
@@ -16,10 +16,13 @@
 bool do_system(const char *cmd)
 {
 
-    int ret = system(cmd);
-    if (ret != 0)
+    int st = system(cmd);
+
+    if (st == -1) {
         return false;
-    return true;
+    } else {
+        return true;
+    }
 }
 
 /**
@@ -38,35 +41,52 @@ bool do_system(const char *cmd)
 
 bool do_exec(int count, ...)
 {
+
+    if (count < 1) {
+        fprintf(stderr, "Error: No command provided.\n");
+        return false;
+    }
+
     va_list args;
     va_start(args, count);
     char * command[count+1];
     int i;
-    for(i=0; i<count; i++)
-    {
+
+    for(i=0; i<count; i++) {
         command[i] = va_arg(args, char *);
     }
+
     command[count] = NULL;
 
-    int status;
-    pid_t pid;
+    va_end(args);
 
-    fflush(stdout);
-    pid = fork();
-    if (pid == -1)
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("Error during fork");
         return false;
-    else if (pid == 0) {
-	execv(command[0], command);
-	exit(-1);
     }
 
-    if (waitpid(pid, &status, 0) == -1)
-	return false;
-    else if (WEXITSTATUS(status) == 0) {
-	va_end(args);
-        return true;
+    if (pid == 0) {
+        if (execv(command[0], command) == -1) {
+            perror("Error executing command");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        int status;
+        if (waitpid(pid, &status, 0) == -1) {
+            perror("Error during waitpid");
+            return false;
+        }
+
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            return true;
+        } else {
+            return false;
+        }
     }
+
     return false;
+
 }
 
 /**
@@ -76,40 +96,48 @@ bool do_exec(int count, ...)
 */
 bool do_exec_redirect(const char *outputfile, int count, ...)
 {
+    if (count < 1) {
+        fprintf(stderr, "Error: No command provided.\n");
+        return false;
+    }
+
     va_list args;
     va_start(args, count);
-    char * command[count+1];
-    int i;
-    for(i=0; i<count; i++)
-    {
+
+    char *command[count + 1];
+    for (int i = 0; i < count; i++) {
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
 
-    int status;
-    pid_t pid;
-    int fd = open("testfile.txt", O_WRONLY);
-    if (fd < 0)
-        return false;
+    va_end(args);
 
-    fflush(stdout);
-    pid = fork();
-    if (pid == -1)
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("Error during fork");
         return false;
-    else if (pid == 0) {
-	if (dup2(fd, 1) < 0)
-	    return false;
-	close(fd);
+    }
+
+    if (pid == 0) {
+        int fd = open(outputfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd == -1) {
+            perror("Error opening output file");
+            exit(1);
+        }
+
+        dup2(fd, STDOUT_FILENO);
+        close(fd);
+
         execv(command[0], command);
-    	exit(-1);
+        perror("Error: execv failed.");
+        exit(1);
+    } else {
+        int status;
+        waitpid(pid, &status, 0);
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            return true;
+        } else {
+            return false;
+        }
     }
-
-    close(fd);
-    if (waitpid(pid, &status, 0) == -1)
-        return false;
-    else if (WEXITSTATUS(status) == 0) {
-        va_end(args);
-        return true;
-    }
-    return false;
 }
