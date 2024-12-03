@@ -1,24 +1,30 @@
 #!/bin/sh
 
-# arguments
-filesdir=$1
-searchstr=$2
-
-# check that two arguments were input
-if [ $# -ne 2 ] 
-then
-	echo "Error! Please provide two arguments: Directory path to search, text string to search"
-	exit 1
-elif [ ! -d $filesdir ]
-then
-	echo "Error! Path is not a directory"
-	exit 1
+if [ "$#" != "2" ] ; then
+    echo "Not enough arguments"
+    exit 1
 fi
 
-filecount=`ls -R1 $filesdir | grep -vc -e "^[\.]" -e"^$"  -e "^/"`
-#echo $filecount
-matchcount=`grep -R ${searchstr} ${filesdir} | grep -c ""`
-#echo $matchcount
+if [ ! -d "${1}" ] ; then
+    echo "Directory \"${1}\" does not exist" ; 
+    exit 1
+fi
 
-echo "The number of files are ${filecount} and the number of matching lines are ${matchcount}"
+# my_find $1
+cnt_files=`find "${1}" | wc -l`
+if [ "${cnt_files}" != 0 ] ; then
+    $(( cnt_files = cnt_files - 1 )) 2>/dev/null
+fi
 
+cnt_grep=0
+a=`grep -Hrn "${2}" "${1}" `
+cnt_grep=`echo "${a}" | wc -l`
+echo "------------------------------------"
+echo " Found ${cnt_grep} occurence(s) of \"${2}\""
+echo "------------------------------------"
+echo "${a}"
+echo "------------------------------------"
+
+echo "The number of files are ${cnt_files} and the number of matching lines are ${cnt_grep}"
+
+exit 0
